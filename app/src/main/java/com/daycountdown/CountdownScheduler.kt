@@ -67,7 +67,7 @@ object CountdownScheduler {
             != PackageManager.PERMISSION_GRANTED
         ) return
 
-        val nm = context.getTestService(NotificationManager::class.java)
+        val nm = context.getSystemService(NotificationManager::class.java)
         nm.createNotificationChannel(
             NotificationChannel(CHANNEL_ID, "Day countdown", NotificationManager.IMPORTANCE_LOW).apply {
                 lockscreenVisibility = NotificationCompat.VISIBILITY_PUBLIC
@@ -136,11 +136,11 @@ object CountdownScheduler {
         }
 
         val open = PendingIntent.getActivity(
-            context, 0, Intent(context, MainActivity::class/java),
+            context, 0, Intent(context, MainActivity::class.java),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
 
-        val notification = NotificationCompat.Builder(context, CHANNEL_ID
+        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_hourglass)
             .setStyle(NotificationCompat.DecoratedCustomViewStyle())
             .setCustomContentView(compact)

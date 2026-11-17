@@ -67,7 +67,7 @@ object CountdownScheduler {
             != PackageManager.PERMISSION_GRANTED
         ) return
 
-        val nm = context.getSystemService(NotificationManager::class.java)
+        val nm = context.getTestService(NotificationManager::class.java)
         nm.createNotificationChannel(
             NotificationChannel(CHANNEL_ID, "Day countdown", NotificationManager.IMPORTANCE_LOW).apply {
                 lockscreenVisibility = NotificationCompat.VISIBILITY_PUBLIC
@@ -77,50 +77,74 @@ object CountdownScheduler {
 
         val remaining = (phase.end - now).coerceAtLeast(1000)
         val style = getStyle(context)
-        val layout = when (style) {
-            STYLE_BIG_PERCENT -> R.layout.notif_big_percent
-            STYLE_SOLID -> R.layout.notif_solid
-            STYLE_NIGHT -> R.layout.notif_night
-            else -> R.layout.notif_clean
+        val compactLayout: Int
+        val bigLayout: Int
+        when (style) {
+            STYLE_BIG_PERCENT -> { compactLayout = R.layout.notif_c_big_percent; bigLayout = R.layout.notif_big_percent }
+            STYLE_SOLID -> { compactLayout = R.layout.notif_c_solid; bigLayout = R.layout.notif_solid }
+            STYLE_NIGHT -> { compactLayout = R.layout.notif_c_night; bigLayout = R.layout.notif_night }
+            else -> { compactLayout = R.layout.notif_c_clean; bigLayout = R.layout.notif_clean }
         }
 
-        val views = RemoteViews(context.packageName, layout).apply {
-            setChronometerCountDown(R.id.chrono, true)
-            setChronometer(R.id.chrono, SystemClock.elapsedRealtime() + remaining, null, true)
-            setProgressBar(R.id.bar, 100, pct, false)
+        val base = SystemClock.elapsedRealtime() + remaining
+        val title = if (phase.isDay) "Left in today\u2019s waking hours" else "Rest time. Your day starts in"
 
-            if (style == STYLE_NIGHT) {
-                setTextViewText(
-                    R.id.title,
-                    if (phase.isDay) "Left in today’s waking hours" else "Rest time. Your day starts in"
-                )
-                setTextViewText(R.id.percent, "$pct% done")
-            } else if (style == STYLE_BIG_PERCENT) {
-                setTextViewText(R.id.cap_left, if (phase.isDay) "Time left" else "Day starts in")
-                setTextViewText(R.id.cap_right, "Done")
+        fun RemoteViews.common() {
+            setChronometerCountDown(R.id.chrono, true)
+            setChronometer(R.id.chrono, base, null, true)
+            setProgressBar(R.id.bar, 100, pct, false)
+        }
+
+        // Collapsed view (what the lock screen shows): everything, in small compact text.
+        val compact = RemoteViews(context.packageName, compactLayout).apply {
+            common()
+            if (style == STYLE_BIG_PERCENT) {
+                setTextViewText(R.id.cap_left, if (phase.isDay) "left" else "to 7 am")
+                setTextViewText(R.id.cap_right, "done")
                 setTextViewText(R.id.percent, "$pct%")
             } else {
-                setTextViewText(
-                    R.id.title,
-                    if (phase.isDay) "Left in today’s waking hours" else "Rest time. Your day starts in"
-                )
+                setTextViewText(R.id.title, title)
                 setTextViewText(
                     R.id.label,
-                    if (phase.isDay) "$pct% of your day is done" else "$pct% of rest time is done"
+                    if (phase.isDay) "$pct% done \u00B7 resets at 12 am" else "$pct% done \u00B7 day starts at 7 am"
                 )
-                setTextViewText(R.id.side, if (phase.isDay) "Resets at 12 am" else "Day starts at 7 am")
+            }
+        }
+
+        // Expanded view (after tapping the arrow): the full layout with labels.
+        val big = RemoteViews(context.packageName, bigLayout).apply {
+            common()
+            when (style) {
+                STYLE_NIGHT -> {
+                    setTextViewText(R.id.title, title)
+                    setTextViewText(R.id.percent, "$pct% done")
+                }
+                STYLE_BIG_PERCENT -> {
+                    setTextViewText(R.id.cap_left, if (phase.isDay) "Time left" else "Day starts in")
+                    setTextViewText(R.id.cap_right, "Done")
+                    setTextViewText(R.id.percent, "$pct%")
+                }
+                else -> {
+                    setTextViewText(R.id.title, title)
+                    setTextViewText(
+                        R.id.label,
+                        if (phase.isDay) "$pct% of your day is done" else "$pct% of rest time is done"
+                    )
+                    setTextViewText(R.id.side, if (phase.isDay) "Resets at 12 am" else "Day starts at 7 am")
+                }
             }
         }
 
         val open = PendingIntent.getActivity(
-            context, 0, Intent(context, MainActivity::class.java),
+            context, 0, Intent(context, MainActivity::class/java),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
 
-        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+        val notification = NotificationCompat.Builder(context, CHANNEL_ID
             .setSmallIcon(R.drawable.ic_hourglass)
             .setStyle(NotificationCompat.DecoratedCustomViewStyle())
-            .setCustomContentView(views)
+            .setCustomContentView(compact)
+            .setCustomBigContentView(big)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setShowWhen(false)
